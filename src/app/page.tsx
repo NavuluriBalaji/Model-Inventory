@@ -11,6 +11,7 @@ import {
   SidebarProvider,
   SidebarFooter,
   SidebarSeparator,
+  SidebarTrigger,
 } from "@/components/ui/sidebar"
 import AppHeader from "@/components/app/header"
 import { PromptForm } from "@/components/app/prompt-form"
@@ -135,7 +136,11 @@ export default function Home() {
         title: "An error occurred",
         description: `Could not fetch responses. ${errorMessage}`,
       })
-      setCurrentChat(prev => prev ? {...prev, messages: prev.messages.slice(0, -1)} : null);
+      // If the API call fails, remove the user message that was optimistically added
+      setCurrentChat(prev => {
+        if (!prev) return null;
+        return {...prev, messages: prev.messages.filter(m => m.id !== userMessage.id)};
+      });
 
     } finally {
       setIsLoading(false)
@@ -163,7 +168,7 @@ export default function Home() {
               <a href="https://github.com/NavuluriBalaji/Model-Inventory" target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" className="gap-2">
                     <Star className="h-4 w-4"/>
-                    Star
+                    <span className="hidden md:inline">Star</span>
                 </Button>
               </a>
            </div>
@@ -213,11 +218,11 @@ export default function Home() {
             <div className="flex-1 overflow-y-auto p-4 md:p-8">
               <div className="max-w-7xl mx-auto space-y-8">
                   {currentMessagesToDisplay.length === 0 && !isLoading && (
-                     <div className="text-center text-muted-foreground py-24">
-                        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-600 text-transparent bg-clip-text">
+                     <div className="text-center text-muted-foreground py-12 md:py-24">
+                        <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-600 text-transparent bg-clip-text">
                            Model-Inventory
                         </h1>
-                        <p className="text-lg">Enter a prompt below to start comparing models.</p>
+                        <p className="text-md md:text-lg">Enter a prompt below to start comparing models.</p>
                      </div>
                   )}
 
@@ -233,9 +238,9 @@ export default function Home() {
                       )}
                       {message.role === 'assistant' && message.responses && (
                          <div className="overflow-x-auto pb-4">
-                            <div className="flex space-x-6">
+                            <div className="flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-6">
                               {message.responses.map(res => (
-                                 <div key={res.id} className="w-[400px] flex-shrink-0">
+                                 <div key={res.id} className="w-full md:w-[400px] flex-shrink-0">
                                    <ResponseCard modelName={res.name} response={res.response} duration={res.duration} />
                                  </div>
                               ))}
@@ -247,9 +252,9 @@ export default function Home() {
 
                   {isLoading && currentMessagesToDisplay[currentMessagesToDisplay.length - 1]?.role === 'user' && (
                     <div className="overflow-x-auto pb-4">
-                      <div className="flex space-x-6">
+                      <div className="flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-6">
                         {modelsToDisplay.map(model => (
-                          <div key={model.id} className="flex flex-col space-y-3 p-4 border border-border/20 rounded-lg bg-card min-w-[400px]">
+                          <div key={model.id} className="flex flex-col space-y-3 p-4 border border-border/20 rounded-lg bg-card w-full md:min-w-[400px]">
                              <div className="flex items-center gap-3">
                                <Skeleton className="h-6 w-32" />
                              </div>
@@ -281,3 +286,5 @@ export default function Home() {
     </SidebarProvider>
   )
 }
+
+    
