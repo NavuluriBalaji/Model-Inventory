@@ -72,7 +72,11 @@ export function ApiKeyManager() {
           <DialogHeader>
             <DialogTitle>API Key Management</DialogTitle>
             <DialogDescription>
-              Your API keys are stored securely in your browser's local storage and are never sent to our servers.
+              Your keys are stored in your browser's local storage.
+              Get your keys from:
+              <a href="https://ai.google.dev/" target="_blank" rel="noopener noreferrer" className="underline text-primary/80 hover:text-primary"> Google AI Studio </a>
+               and 
+              <a href="https://openrouter.ai/" target="_blank" rel="noopener noreferrer" className="underline text-primary/80 hover:text-primary"> OpenRouter.ai</a>.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
