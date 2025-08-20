@@ -49,11 +49,11 @@ export function ModelSelection({ allModels, selectedModels, setSelectedModels }:
          </Badge>
        )}
 
-
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline">
-            Change models
+            <span className="hidden md:inline">Change models</span>
+            <span className="md:hidden">Models</span>
             <ChevronDown className="ml-2 h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -75,3 +75,5 @@ export function ModelSelection({ allModels, selectedModels, setSelectedModels }:
     </div>
   );
 }
+
+    
