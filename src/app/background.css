@@ -1,0 +1,43 @@
+body {
+    background-color: #0a0a0a;
+    overflow-x: hidden;
+}
+  
+.background-animation {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at top, transparent 40%, #0a0a0a),
+                radial-gradient(ellipse at bottom, transparent 40%, #0a0a0a);
+}
+
+.background-animation::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200vw;
+    height: 200vh;
+    background-image:
+        radial-gradient(circle at center, rgba(120, 81, 169, 0.1) 0%, transparent 30%),
+        radial-gradient(circle at center, rgba(68, 126, 222, 0.1) 0%, transparent 30%);
+    background-repeat: no-repeat;
+    background-size: 800px 800px, 1200px 1200px;
+    background-position: -200px -200px, 400px 400px;
+    transform-origin: center center;
+    animation: rotateRays 60s linear infinite;
+    opacity: 0.5;
+}
+
+@keyframes rotateRays {
+    from {
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
