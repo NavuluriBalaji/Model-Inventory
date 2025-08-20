@@ -3,7 +3,6 @@
 Model-Inventory is a sleek, modern web application built with Next.js that allows you to send a single prompt to multiple open-source and proprietary AI models simultaneously and compare their responses in a clean, side-by-side interface.
 
 ![Model-Inventory Screenshot](https://res.cloudinary.com/dj4ppo7xm/image/upload/v1755707769/Screenshot_2025-08-20_220459_enoxrc.png)
-*Replace the placeholder above with a screenshot of your running application.*
 
 ---
 
