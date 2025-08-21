@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -11,9 +12,17 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { callOpenRouter } from '@/lib/openrouter';
+import { allModels } from '@/lib/models';
 
 const GetModelResponsesInputSchema = z.object({
   prompt: z.string().describe('The prompt to send to the AI models.'),
+  models: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    genkitId: z.string().optional().nullable(),
+    openRouterId: z.string().optional().nullable(),
+  })).describe('An array of models to query.'),
+  openRouterKey: z.string().optional().describe('OpenRouter API key.'),
 });
 export type GetModelResponsesInput = z.infer<typeof GetModelResponsesInputSchema>;
 
@@ -35,13 +44,7 @@ const getModelResponsesFlow = ai.defineFlow(
     inputSchema: GetModelResponsesInputSchema,
     outputSchema: GetModelResponsesOutputSchema,
   },
-  async ({ prompt }) => {
-    const openRouterModels = [
-      { id: 'deepseek', name: 'deepseek/deepseek-chat' },
-      { id: 'llama', name: 'meta-llama/llama-3-8b-instruct' },
-      { id: 'mistral', name: 'mistralai/mistral-7b-instruct' },
-    ];
-
+  async ({ prompt, models, openRouterKey }) => {
     const promises = [];
 
     const timeRequest = async (id: string, promise: Promise<string>) => {
@@ -57,19 +60,25 @@ const getModelResponsesFlow = ai.defineFlow(
       }
     };
     
-    // Gemini call
-    const geminiPromise = ai.generate({
-        prompt,
-        model: 'googleai/gemini-1.5-flash-latest'
-      })
-      .then(response => response.text);
-    promises.push(timeRequest('gemini', geminiPromise));
+    // Gemini calls
+    const geminiModels = models.filter(m => !!m.genkitId);
+    for (const model of geminiModels) {
+        const geminiPromise = ai.generate({
+            prompt,
+            model: model.genkitId as any,
+          })
+          .then(response => response.text);
+        promises.push(timeRequest(model.id, geminiPromise));
+    }
 
 
     // OpenRouter calls
+    const openRouterModels = models.filter(m => !!m.openRouterId);
     for (const model of openRouterModels) {
-      const openRouterPromise = callOpenRouter(model.name, prompt);
-      promises.push(timeRequest(model.id, openRouterPromise));
+      if(model.openRouterId) {
+        const openRouterPromise = callOpenRouter(model.openRouterId, prompt, openRouterKey);
+        promises.push(timeRequest(model.id, openRouterPromise));
+      }
     }
     
     const results = await Promise.all(promises);
