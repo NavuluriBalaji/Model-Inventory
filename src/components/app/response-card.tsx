@@ -41,33 +41,8 @@ export function ResponseCard({
       // If successful, pretty-print it
       return <pre className="whitespace-pre-wrap">{JSON.stringify(jsonData, null, 2)}</pre>;
     } catch (e) {
-      // Not a JSON string, try to format as a table or just return as-is
-      const tableRegex = /\|(.+)\|\n\|(.*)\|\n((?:\|.*\|\n?)*)/g;
-      if (tableRegex.test(text)) {
-        return text.split('\n').map((line, i) => {
-          if (line.startsWith('|') && line.endsWith('|')) {
-            const cells = line.split('|').filter(c => c.trim() !== '');
-            const Tag = i === 0 || line.includes('---') ? 'th' : 'td';
-            if (i === 1 && line.includes('---')) return null;
-            return <tr key={i}>{cells.map((cell, j) => <Tag key={j}>{cell.trim()}</Tag>)}</tr>
-          }
-          return <p key={i}>{line}</p>
-        }).filter(Boolean).reduce((acc: any[], el, i) => {
-            if (el.type === 'tr') {
-                if (acc.length === 0 || acc[acc.length-1].type !== 'table') {
-                    acc.push(<table key={`table-${i}`} className="w-full"><tbody>{el}</tbody></table>);
-                } else {
-                    const table = acc[acc.length - 1];
-                    const newTbody = React.cloneElement(table.props.children, {}, [...table.props.children.props.children, el]);
-                    acc[acc.length - 1] = React.cloneElement(table, {}, newTbody);
-                }
-            } else {
-                acc.push(el);
-            }
-            return acc;
-        }, []);
-      }
-      return <p>{text}</p>;
+        // If it's not JSON, render it as plain text, preserving whitespace
+        return <p className="whitespace-pre-wrap">{text}</p>;
     }
   }
 
