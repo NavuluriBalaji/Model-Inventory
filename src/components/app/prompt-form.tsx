@@ -1,6 +1,7 @@
 
 "use client"
 
+import * as React from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Send, Loader2, Paperclip, Camera, X } from "lucide-react"
