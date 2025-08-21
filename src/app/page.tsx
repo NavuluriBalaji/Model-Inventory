@@ -49,7 +49,7 @@ export default function Home() {
   const [currentChat, setCurrentChat] = React.useState<Chat | null>(null);
   const [chatHistory, setChatHistory] = React.useState<Chat[]>([]);
   const [prompt, setPrompt] = React.useState<string>("")
-  const [selectedModels, setSelectedModels] = React.useState<string[]>(['gemini', 'llama', 'mistral']);
+  const [selectedModels, setSelectedModels] = React.useState<string[]>(['gemini-1.5-flash', 'llama', 'mistral-7b']);
   const { toast } = useToast()
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
@@ -59,21 +59,26 @@ export default function Home() {
     setPrompt("");
   };
   
-  const checkApiKeys = () => {
-    if (typeof window === "undefined") return true;
+  const getApiKeys = () => {
+    if (typeof window === "undefined") return null;
     const storedKeys = localStorage.getItem("ai_api_keys");
-    if (!storedKeys) {
-      return false;
+    if (!storedKeys) return null;
+    try {
+      return JSON.parse(storedKeys);
+    } catch (e) {
+      return null;
     }
-    const keys = JSON.parse(storedKeys);
-    return keys.gemini && keys.openrouter;
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!prompt || isLoading) return
     
-    if (!checkApiKeys()) {
+    const keys = getApiKeys();
+    const openRouterModelsSelected = selectedModels.some(id => allModels.find(m => m.id === id)?.openRouterId);
+    const geminiModelsSelected = selectedModels.some(id => allModels.find(m => m.id === id)?.genkitId);
+
+    if (!keys || (openRouterModelsSelected && !keys.openrouter) || (geminiModelsSelected && !keys.gemini)) {
       setIsSettingsOpen(true);
       toast({
         variant: "destructive",
@@ -111,7 +116,13 @@ export default function Home() {
 
       const modelResponses = await getModelResponses({ 
         prompt, 
-        models: modelsToQuery.map(m => ({ id: m.id, name: m.openRouterId || '' }))
+        models: modelsToQuery.map(m => ({ 
+            id: m.id, 
+            name: m.name, 
+            genkitId: m.genkitId || null, 
+            openRouterId: m.openRouterId || null 
+        })),
+        openRouterKey: keys.openrouter,
       })
       
       const newResponses: AIResponse[] = modelsToQuery
@@ -306,5 +317,3 @@ export default function Home() {
     </SidebarProvider>
   )
 }
-
-    
