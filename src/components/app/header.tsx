@@ -1,3 +1,4 @@
+
 import * as React from "react";
 import { Bot } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
