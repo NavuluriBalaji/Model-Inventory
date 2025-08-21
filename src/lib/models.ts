@@ -18,11 +18,11 @@ export const allModels = [
     },
     {
         id: "gemini-1.0-pro",
-        name: "Google: Gemini 1.0 Pro",
+        name: "Google: Gemini 2.0 flash",
         description: "The original Pro-grade Gemini model, balanced for performance and cost.",
         context: "32K tokens",
         openRouterId: null,
-        genkitId: 'googleai/gemini-1.0-pro',
+        genkitId: 'googleai/gemini-2.0-flash',
     },
     {
         id: "llama",
