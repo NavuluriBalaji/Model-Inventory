@@ -13,9 +13,11 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { callOpenRouter } from '@/lib/openrouter';
 import { allModels } from '@/lib/models';
+import { Part } from 'genkit';
 
 const GetModelResponsesInputSchema = z.object({
   prompt: z.string().describe('The prompt to send to the AI models.'),
+  imageDataUri: z.string().optional().nullable().describe('An optional image data URI.'),
   models: z.array(z.object({
     id: z.string(),
     name: z.string(),
@@ -44,7 +46,7 @@ const getModelResponsesFlow = ai.defineFlow(
     inputSchema: GetModelResponsesInputSchema,
     outputSchema: GetModelResponsesOutputSchema,
   },
-  async ({ prompt, models, openRouterKey }) => {
+  async ({ prompt, models, openRouterKey, imageDataUri }) => {
     const promises = [];
 
     const timeRequest = async (id: string, promise: Promise<string>) => {
@@ -56,27 +58,35 @@ const getModelResponsesFlow = ai.defineFlow(
       } catch (error) {
         const endTime = performance.now();
         const errorMessage = error instanceof Error ? `Error: ${error.message}` : 'An unknown error occurred';
+        console.error(`Error for model ${id}:`, error);
         return { id, response: errorMessage, duration: Math.round(endTime - startTime) };
       }
     };
+
+    // Construct parts for multimodal input
+    const promptParts: Part[] = [{ text: prompt }];
+    if (imageDataUri) {
+      promptParts.push({ media: { url: imageDataUri } });
+    }
     
     // Gemini calls
     const geminiModels = models.filter(m => !!m.genkitId);
     for (const model of geminiModels) {
+        // Vision models can handle images, others might not.
+        // For this app, we assume all selected Gemini models are vision-capable if an image is provided.
         const geminiPromise = ai.generate({
-            prompt,
+            prompt: promptParts,
             model: model.genkitId as any,
           })
           .then(response => response.text);
         promises.push(timeRequest(model.id, geminiPromise));
     }
 
-
     // OpenRouter calls
     const openRouterModels = models.filter(m => !!m.openRouterId);
     for (const model of openRouterModels) {
       if(model.openRouterId) {
-        const openRouterPromise = callOpenRouter(model.openRouterId, prompt, openRouterKey);
+        const openRouterPromise = callOpenRouter(model.openRouterId, prompt, openRouterKey, imageDataUri);
         promises.push(timeRequest(model.id, openRouterPromise));
       }
     }
