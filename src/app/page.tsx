@@ -23,6 +23,7 @@ import { getModelResponses } from "@/ai/flows/get-model-responses"
 import { useToast } from "@/hooks/use-toast"
 import { ApiKeyManager } from "@/components/app/api-key-manager"
 import { allModels } from "@/lib/models"
+import { CameraCaptureDialog } from "@/components/app/camera-capture"
 
 interface AIResponse {
   id: string
@@ -35,6 +36,7 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  image?: string | null;
   responses?: AIResponse[];
 }
 
@@ -49,14 +51,17 @@ export default function Home() {
   const [currentChat, setCurrentChat] = React.useState<Chat | null>(null);
   const [chatHistory, setChatHistory] = React.useState<Chat[]>([]);
   const [prompt, setPrompt] = React.useState<string>("")
+  const [image, setImage] = React.useState<string | null>(null);
   const [selectedModels, setSelectedModels] = React.useState<string[]>(['gemini-1.5-flash', 'llama', 'mistral-7b']);
   const { toast } = useToast()
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+  const [isCameraOpen, setIsCameraOpen] = React.useState(false);
 
 
   const handleNewChat = () => {
     setCurrentChat(null);
     setPrompt("");
+    setImage(null);
   };
   
   const getApiKeys = () => {
@@ -72,7 +77,7 @@ export default function Home() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!prompt || isLoading) return
+    if ((!prompt && !image) || isLoading) return
     
     const keys = getApiKeys();
     const openRouterModelsSelected = selectedModels.some(id => allModels.find(m => m.id === id)?.openRouterId);
@@ -94,10 +99,11 @@ export default function Home() {
       id: new Date().toISOString() + '-user',
       role: 'user',
       content: prompt,
+      image: image,
     };
     
     let currentMessages = currentChat ? [...currentChat.messages, userMessage] : [userMessage];
-    let title = currentChat ? currentChat.title : prompt.substring(0, 30) + (prompt.length > 30 ? "..." : "");
+    let title = currentChat ? currentChat.title : (prompt || "Image Query").substring(0, 30) + "...";
 
     if (currentChat) {
       setCurrentChat(prev => ({...prev!, messages: [...prev!.messages, userMessage]}));
@@ -111,11 +117,11 @@ export default function Home() {
     }
 
     try {
-      // Get the full model objects for the selected IDs
       const modelsToQuery = allModels.filter(model => selectedModels.includes(model.id));
 
       const modelResponses = await getModelResponses({ 
         prompt, 
+        imageDataUri: image,
         models: modelsToQuery.map(m => ({ 
             id: m.id, 
             name: m.name, 
@@ -158,6 +164,7 @@ export default function Home() {
         setChatHistory(prev => [newChat, ...prev]);
       }
       setPrompt("");
+      setImage(null);
 
     } catch (error) {
       console.error(error)
@@ -167,7 +174,6 @@ export default function Home() {
         title: "An error occurred",
         description: `Could not fetch responses. ${errorMessage}`,
       })
-      // If the API call fails, remove the user message that was optimistically added
       setCurrentChat(prev => {
         if (!prev) return null;
         return {...prev, messages: prev.messages.filter(m => m.id !== userMessage.id)};
@@ -187,6 +193,11 @@ export default function Home() {
 
   return (
     <SidebarProvider>
+       <CameraCaptureDialog 
+          isOpen={isCameraOpen} 
+          setIsOpen={setIsCameraOpen} 
+          setImage={setImage}
+        />
       <div className="flex h-screen w-screen flex-col bg-transparent overflow-hidden">
         <AppHeader>
            <div className="flex items-center gap-2">
@@ -264,7 +275,12 @@ export default function Home() {
                           <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary flex items-center justify-center">
                               <User className="h-5 w-5 text-primary-foreground" />
                           </div>
-                          <p className="text-foreground/80 prose prose-sm max-w-none pt-1">{message.content}</p>
+                          <div className="flex-1">
+                            {message.image && (
+                               <img src={message.image} alt="User upload" className="rounded-lg max-w-xs mb-2 border border-border/20" />
+                            )}
+                            <p className="text-foreground/80 prose prose-sm max-w-none pt-1">{message.content}</p>
+                          </div>
                         </div>
                       )}
                       {message.role === 'assistant' && message.responses && (
@@ -308,6 +324,9 @@ export default function Home() {
                     setPrompt={setPrompt}
                     isLoading={isLoading}
                     onSubmit={handleSubmit}
+                    image={image}
+                    setImage={setImage}
+                    onCameraClick={() => setIsCameraOpen(true)}
                   />
                </div>
             </div>
