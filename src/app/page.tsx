@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -11,7 +12,6 @@ import {
   SidebarProvider,
   SidebarFooter,
   SidebarSeparator,
-  SidebarTrigger,
 } from "@/components/ui/sidebar"
 import AppHeader from "@/components/app/header"
 import { PromptForm } from "@/components/app/prompt-form"
@@ -22,7 +22,7 @@ import { Bot, MessageSquare, PlusCircle, User, Star, Github } from "lucide-react
 import { getModelResponses } from "@/ai/flows/get-model-responses"
 import { useToast } from "@/hooks/use-toast"
 import { ApiKeyManager } from "@/components/app/api-key-manager"
-import { ModelSelection } from "@/components/app/model-selection"
+import { allModels } from "@/lib/models"
 
 interface AIResponse {
   id: string
@@ -44,29 +44,44 @@ interface Chat {
   messages: Message[];
 }
 
-const allModels = [
-    { id: "gemini", name: "Gemini 1.5 Flash" },
-    { id: "deepseek", name: "DeepSeek Chat" },
-    { id: "llama", name: "Llama 3 8B Instruct" },
-    { id: "mistral", name: "Mistral 7B Instruct" },
-];
-
 export default function Home() {
   const [isLoading, setIsLoading] = React.useState(false)
   const [currentChat, setCurrentChat] = React.useState<Chat | null>(null);
   const [chatHistory, setChatHistory] = React.useState<Chat[]>([]);
   const [prompt, setPrompt] = React.useState<string>("")
-  const [selectedModels, setSelectedModels] = React.useState<string[]>(allModels.map(m => m.id));
+  const [selectedModels, setSelectedModels] = React.useState<string[]>(['gemini', 'llama', 'mistral']);
   const { toast } = useToast()
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+
 
   const handleNewChat = () => {
     setCurrentChat(null);
     setPrompt("");
   };
+  
+  const checkApiKeys = () => {
+    if (typeof window === "undefined") return true;
+    const storedKeys = localStorage.getItem("ai_api_keys");
+    if (!storedKeys) {
+      return false;
+    }
+    const keys = JSON.parse(storedKeys);
+    return keys.gemini && keys.openrouter;
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!prompt || isLoading) return
+    
+    if (!checkApiKeys()) {
+      setIsSettingsOpen(true);
+      toast({
+        variant: "destructive",
+        title: "API Keys Required",
+        description: "Please enter your API keys in the settings to continue.",
+      })
+      return;
+    }
 
     setIsLoading(true)
     
@@ -91,10 +106,15 @@ export default function Home() {
     }
 
     try {
-      const modelResponses = await getModelResponses({ prompt })
+      // Get the full model objects for the selected IDs
+      const modelsToQuery = allModels.filter(model => selectedModels.includes(model.id));
+
+      const modelResponses = await getModelResponses({ 
+        prompt, 
+        models: modelsToQuery.map(m => ({ id: m.id, name: m.openRouterId || '' }))
+      })
       
-      const newResponses: AIResponse[] = allModels
-        .filter(model => selectedModels.includes(model.id))
+      const newResponses: AIResponse[] = modelsToQuery
         .map(model => ({
           ...model,
           response: modelResponses[model.id]?.response || "No response from model.",
@@ -159,12 +179,12 @@ export default function Home() {
       <div className="flex h-screen w-screen flex-col bg-transparent overflow-hidden">
         <AppHeader>
            <div className="flex items-center gap-2">
-              <ModelSelection 
-                allModels={allModels}
+              <ApiKeyManager 
+                isOpen={isSettingsOpen}
+                setIsOpen={setIsSettingsOpen}
                 selectedModels={selectedModels}
                 setSelectedModels={setSelectedModels}
               />
-              <ApiKeyManager />
               <a href="https://github.com/NavuluriBalaji/Model-Inventory" target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" className="gap-2">
                     <Star className="h-4 w-4"/>
