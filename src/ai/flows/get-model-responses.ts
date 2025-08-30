@@ -17,7 +17,7 @@ import { Part } from 'genkit';
 
 const GetModelResponsesInputSchema = z.object({
   prompt: z.string().describe('The prompt to send to the AI models.'),
-  imageDataUri: z.string().optional().nullable().describe('An optional image data URI.'),
+  fileDataUri: z.string().optional().nullable().describe('An optional file data URI.'),
   models: z.array(z.object({
     id: z.string(),
     name: z.string(),
@@ -46,7 +46,7 @@ const getModelResponsesFlow = ai.defineFlow(
     inputSchema: GetModelResponsesInputSchema,
     outputSchema: GetModelResponsesOutputSchema,
   },
-  async ({ prompt, models, openRouterKey, imageDataUri }) => {
+  async ({ prompt, models, openRouterKey, fileDataUri }) => {
     const promises = [];
 
     const timeRequest = async (id: string, promise: Promise<string>) => {
@@ -65,8 +65,8 @@ const getModelResponsesFlow = ai.defineFlow(
 
     // Construct parts for multimodal input
     const promptParts: Part[] = [{ text: prompt }];
-    if (imageDataUri) {
-      promptParts.push({ media: { url: imageDataUri } });
+    if (fileDataUri) {
+      promptParts.push({ media: { url: fileDataUri } });
     }
     
     // Gemini calls
@@ -86,7 +86,7 @@ const getModelResponsesFlow = ai.defineFlow(
     const openRouterModels = models.filter(m => !!m.openRouterId);
     for (const model of openRouterModels) {
       if(model.openRouterId) {
-        const openRouterPromise = callOpenRouter(model.openRouterId, prompt, openRouterKey, imageDataUri);
+        const openRouterPromise = callOpenRouter(model.openRouterId, prompt, openRouterKey, fileDataUri);
         promises.push(timeRequest(model.id, openRouterPromise));
       }
     }
