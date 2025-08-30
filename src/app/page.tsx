@@ -18,7 +18,18 @@ import { PromptForm } from "@/components/app/prompt-form"
 import { ResponseCard } from "@/components/app/response-card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { Bot, MessageSquare, PlusCircle, User, Star, Github } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+
+import { Bot, MessageSquare, PlusCircle, User, Star, Github, Trash2 } from "lucide-react"
 import { getModelResponses } from "@/ai/flows/get-model-responses"
 import { useToast } from "@/hooks/use-toast"
 import { ApiKeyManager } from "@/components/app/api-key-manager"
@@ -62,20 +73,25 @@ export default function Home() {
   const { toast } = useToast()
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [isCameraOpen, setIsCameraOpen] = React.useState(false);
+  const [deleteAlertOpen, setDeleteAlertOpen] = React.useState(false);
+  const [chatToDelete, setChatToDelete] = React.useState<string | null>(null);
 
   // Load chat history from localStorage on mount
   React.useEffect(() => {
-    const storedHistory = localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
-    if (storedHistory) {
-      try {
-        const parsedHistory = JSON.parse(storedHistory);
-        setChatHistory(parsedHistory);
-        if (parsedHistory.length > 0 && !currentChatId) {
-            setCurrentChatId(parsedHistory[0].id);
+    try {
+        const storedHistory = localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
+        if (storedHistory) {
+            const parsedHistory = JSON.parse(storedHistory);
+            if (Array.isArray(parsedHistory) && parsedHistory.length > 0) {
+              setChatHistory(parsedHistory);
+              if (!currentChatId) {
+                  setCurrentChatId(parsedHistory[0].id);
+              }
+            }
         }
-      } catch (error) {
+    } catch (error) {
         console.error("Failed to parse chat history from localStorage", error);
-      }
+        localStorage.removeItem(CHAT_HISTORY_STORAGE_KEY);
     }
   }, []);
 
@@ -83,6 +99,9 @@ export default function Home() {
   React.useEffect(() => {
     if (chatHistory.length > 0) {
       localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(chatHistory));
+    } else {
+      // If there's no history, remove the key from local storage
+      localStorage.removeItem(CHAT_HISTORY_STORAGE_KEY);
     }
   }, [chatHistory]);
 
@@ -132,21 +151,13 @@ export default function Home() {
 
     let activeChatId = currentChatId;
     let isNewChat = false;
-    let existingMessages: Message[] = [];
-
+    
     if (!activeChatId) {
-        const newChat: Chat = {
-            id: new Date().toISOString(),
-            title: (prompt || "File Query").substring(0, 30) + "...",
-            messages: [],
-        };
-        setChatHistory(prev => [newChat, ...prev]);
-        setCurrentChatId(newChat.id);
-        activeChatId = newChat.id;
+        handleNewChat();
         isNewChat = true;
-    } else {
-        existingMessages = chatHistory.find(c => c.id === activeChatId)?.messages || [];
-    }
+    } 
+    
+    const currentMessages = chatHistory.find(c => c.id === (activeChatId || (isNewChat ? chatHistory[0].id : null)))?.messages || [];
     
     const userMessage: Message = {
       id: new Date().toISOString() + '-user',
@@ -169,13 +180,13 @@ export default function Home() {
     };
 
     setChatHistory(prev => prev.map(chat => 
-        chat.id === activeChatId 
+        chat.id === (activeChatId || chat.id)
             ? { ...chat, messages: [...chat.messages, userMessage, initialAssistantMessage] }
             : chat
     ));
 
     try {
-       const messagesForApi = [...existingMessages.map(m => ({...m, responses: undefined})), userMessage];
+       const messagesForApi = [...currentMessages.map(m => ({...m, responses: undefined})), userMessage];
 
       const responses = await getModelResponses({ 
         messages: messagesForApi,
@@ -196,7 +207,8 @@ export default function Home() {
       }));
       
       setChatHistory(prev => prev.map(chat => {
-          if (chat.id === activeChatId) {
+          const finalChatId = activeChatId || prev[0].id;
+          if (chat.id === finalChatId) {
               const newMessages = [...chat.messages];
               const assistantMsgIndex = newMessages.findIndex(m => m.id === initialAssistantMessage.id);
               if (assistantMsgIndex !== -1) {
@@ -222,9 +234,9 @@ export default function Home() {
         title: "An error occurred",
         description: `Could not fetch responses. ${errorMessage}`,
       })
-      
+      const finalChatId = activeChatId || chatHistory[0]?.id;
       setChatHistory(prev => prev.map(chat => 
-        chat.id === activeChatId 
+        chat.id === finalChatId
             ? { ...chat, messages: chat.messages.filter(m => m.id !== userMessage.id && m.id !== initialAssistantMessage.id) }
             : chat
       ));
@@ -236,6 +248,29 @@ export default function Home() {
   
   const selectChat = (chatId: string) => {
     setCurrentChatId(chatId);
+  }
+
+  const handleDeleteChat = () => {
+    if (!chatToDelete) return;
+    
+    const newHistory = chatHistory.filter(chat => chat.id !== chatToDelete);
+    setChatHistory(newHistory);
+
+    if (currentChatId === chatToDelete) {
+        if (newHistory.length > 0) {
+            setCurrentChatId(newHistory[0].id);
+        } else {
+            setCurrentChatId(null);
+            handleNewChat();
+        }
+    }
+    setChatToDelete(null);
+    setDeleteAlertOpen(false);
+  }
+  
+  const confirmDelete = (chatId: string) => {
+    setChatToDelete(chatId);
+    setDeleteAlertOpen(true);
   }
 
   const handleSetImage = (dataUri: string | null) => {
@@ -256,6 +291,21 @@ export default function Home() {
           setIsOpen={setIsCameraOpen} 
           setImage={handleSetImage}
         />
+        <AlertDialog open={deleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This will permanently delete this chat. This action cannot be undone.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteChat}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
       <div className="flex h-screen w-screen flex-col bg-transparent overflow-hidden">
         <AppHeader>
            <div className="flex items-center gap-2">
@@ -285,15 +335,28 @@ export default function Home() {
               <SidebarMenu>
                 {chatHistory.map((chat) => (
                   <SidebarMenuItem key={chat.id}>
-                    <SidebarMenuButton 
-                      onClick={() => selectChat(chat.id)}
-                      isActive={currentChatId === chat.id}
-                      tooltip={chat.title}
-                      className="justify-start"
-                    >
-                      <MessageSquare />
-                      <span className="truncate">{chat.title}</span>
-                    </SidebarMenuButton>
+                    <div className="relative flex items-center group">
+                        <SidebarMenuButton 
+                        onClick={() => selectChat(chat.id)}
+                        isActive={currentChatId === chat.id}
+                        tooltip={chat.title}
+                        className="justify-start w-full pr-8"
+                        >
+                            <MessageSquare />
+                            <span className="truncate">{chat.title}</span>
+                        </SidebarMenuButton>
+                        <Button 
+                            variant="ghost" 
+                            size="icon"
+                            className="absolute right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                confirmDelete(chat.id)
+                            }}
+                        >
+                            <Trash2 className="h-4 w-4 text-muted-foreground"/>
+                        </Button>
+                    </div>
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
