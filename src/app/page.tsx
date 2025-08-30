@@ -50,9 +50,11 @@ interface Chat {
   messages: Message[];
 }
 
+const CHAT_HISTORY_STORAGE_KEY = "chat_history";
+
 export default function Home() {
   const [isLoading, setIsLoading] = React.useState(false)
-  const [currentChat, setCurrentChat] = React.useState<Chat | null>(null);
+  const [currentChatId, setCurrentChatId] = React.useState<string | null>(null);
   const [chatHistory, setChatHistory] = React.useState<Chat[]>([]);
   const [prompt, setPrompt] = React.useState<string>("")
   const [file, setFile] = React.useState<{dataUri: string, name: string, type: string} | null>(null);
@@ -61,9 +63,38 @@ export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [isCameraOpen, setIsCameraOpen] = React.useState(false);
 
+  // Load chat history from localStorage on mount
+  React.useEffect(() => {
+    const storedHistory = localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
+    if (storedHistory) {
+      try {
+        const parsedHistory = JSON.parse(storedHistory);
+        setChatHistory(parsedHistory);
+        if (parsedHistory.length > 0 && !currentChatId) {
+            setCurrentChatId(parsedHistory[0].id);
+        }
+      } catch (error) {
+        console.error("Failed to parse chat history from localStorage", error);
+      }
+    }
+  }, []);
+
+  // Save chat history to localStorage whenever it changes
+  React.useEffect(() => {
+    if (chatHistory.length > 0) {
+      localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(chatHistory));
+    }
+  }, [chatHistory]);
+
 
   const handleNewChat = () => {
-    setCurrentChat(null);
+    const newChat: Chat = {
+        id: new Date().toISOString(),
+        title: "New Chat",
+        messages: [],
+    };
+    setChatHistory(prev => [newChat, ...prev]);
+    setCurrentChatId(newChat.id);
     setPrompt("");
     setFile(null);
   };
@@ -98,6 +129,21 @@ export default function Home() {
     }
 
     setIsLoading(true)
+
+    let activeChatId = currentChatId;
+    let isNewChat = false;
+
+    if (!activeChatId) {
+        const newChat: Chat = {
+            id: new Date().toISOString(),
+            title: (prompt || "File Query").substring(0, 30) + "...",
+            messages: [],
+        };
+        setChatHistory(prev => [newChat, ...prev]);
+        setCurrentChatId(newChat.id);
+        activeChatId = newChat.id;
+        isNewChat = true;
+    }
     
     const userMessage: Message = {
       id: new Date().toISOString() + '-user',
@@ -106,19 +152,12 @@ export default function Home() {
       file: file,
     };
     
-    let currentMessages = currentChat ? [...currentChat.messages, userMessage] : [userMessage];
-    let title = currentChat ? currentChat.title : (prompt || "File Query").substring(0, 30) + "...";
+    setChatHistory(prev => prev.map(chat => 
+        chat.id === activeChatId 
+            ? { ...chat, messages: [...chat.messages, userMessage] }
+            : chat
+    ));
 
-    if (currentChat) {
-      setCurrentChat(prev => ({...prev!, messages: [...prev!.messages, userMessage]}));
-    } else {
-      const newChatStub: Chat = {
-        id: new Date().toISOString(),
-        title,
-        messages: [userMessage],
-      };
-      setCurrentChat(newChatStub);
-    }
 
     try {
       const modelsToQuery = allModels.filter(model => selectedModels.includes(model.id));
@@ -149,24 +188,17 @@ export default function Home() {
         responses: newResponses,
       };
 
-      currentMessages = [...currentMessages, assistantMessage];
+      setChatHistory(prev => prev.map(chat => {
+        if (chat.id === activeChatId) {
+            const updatedChat = { ...chat, messages: [...chat.messages, assistantMessage] };
+            if (isNewChat && chat.messages.length === 1) { // It was a new chat, first user message just added
+                updatedChat.title = (prompt || "File Query").substring(0, 30) + "...";
+            }
+            return updatedChat;
+        }
+        return chat;
+      }));
 
-      if (currentChat) {
-        const updatedChat: Chat = {
-          ...currentChat,
-          messages: currentMessages,
-        };
-        setCurrentChat(updatedChat);
-        setChatHistory(prev => prev.map(chat => chat.id === updatedChat.id ? updatedChat : chat));
-      } else {
-        const newChat: Chat = {
-          id: new Date().toISOString(),
-          title,
-          messages: currentMessages,
-        };
-        setCurrentChat(newChat);
-        setChatHistory(prev => [newChat, ...prev]);
-      }
       setPrompt("");
       setFile(null);
 
@@ -178,18 +210,21 @@ export default function Home() {
         title: "An error occurred",
         description: `Could not fetch responses. ${errorMessage}`,
       })
-      setCurrentChat(prev => {
-        if (!prev) return null;
-        return {...prev, messages: prev.messages.filter(m => m.id !== userMessage.id)};
-      });
+      
+      // Rollback user message on error
+      setChatHistory(prev => prev.map(chat => 
+        chat.id === activeChatId 
+            ? { ...chat, messages: chat.messages.filter(m => m.id !== userMessage.id) }
+            : chat
+      ));
 
     } finally {
       setIsLoading(false)
     }
   }
   
-  const selectChat = (chat: Chat) => {
-    setCurrentChat(chat);
+  const selectChat = (chatId: string) => {
+    setCurrentChatId(chatId);
   }
 
   const handleSetImage = (dataUri: string | null) => {
@@ -200,6 +235,7 @@ export default function Home() {
     }
   };
 
+  const currentChat = chatHistory.find(c => c.id === currentChatId);
   const currentMessagesToDisplay = currentChat ? currentChat.messages : [];
   const modelsToDisplay = allModels.filter(m => selectedModels.includes(m.id));
 
@@ -240,8 +276,8 @@ export default function Home() {
                 {chatHistory.map((chat) => (
                   <SidebarMenuItem key={chat.id}>
                     <SidebarMenuButton 
-                      onClick={() => selectChat(chat)}
-                      isActive={currentChat?.id === chat.id}
+                      onClick={() => selectChat(chat.id)}
+                      isActive={currentChatId === chat.id}
                       tooltip={chat.title}
                       className="justify-start"
                     >
@@ -316,7 +352,7 @@ export default function Home() {
                     </div>
                   ))}
 
-                  {isLoading && currentMessagesToDisplay[currentMessagesToDisplay.length - 1]?.role === 'user' && (
+                  {isLoading && currentMessagesToDisplay.length > 0 && currentMessagesToDisplay[currentMessagesToDisplay.length - 1]?.role === 'user' && (
                     <div className="overflow-x-auto pb-4">
                       <div className="flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-6">
                         {modelsToDisplay.map(model => (
@@ -355,3 +391,5 @@ export default function Home() {
     </SidebarProvider>
   )
 }
+
+    
