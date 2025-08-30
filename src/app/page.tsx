@@ -36,7 +36,11 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  image?: string | null;
+  file?: {
+    dataUri: string;
+    name: string;
+    type: string;
+  } | null;
   responses?: AIResponse[];
 }
 
@@ -51,7 +55,7 @@ export default function Home() {
   const [currentChat, setCurrentChat] = React.useState<Chat | null>(null);
   const [chatHistory, setChatHistory] = React.useState<Chat[]>([]);
   const [prompt, setPrompt] = React.useState<string>("")
-  const [image, setImage] = React.useState<string | null>(null);
+  const [file, setFile] = React.useState<{dataUri: string, name: string, type: string} | null>(null);
   const [selectedModels, setSelectedModels] = React.useState<string[]>(['gemini-1.5-flash', 'llama', 'mistral-7b']);
   const { toast } = useToast()
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
@@ -61,7 +65,7 @@ export default function Home() {
   const handleNewChat = () => {
     setCurrentChat(null);
     setPrompt("");
-    setImage(null);
+    setFile(null);
   };
   
   const getApiKeys = () => {
@@ -77,7 +81,7 @@ export default function Home() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if ((!prompt && !image) || isLoading) return
+    if ((!prompt && !file) || isLoading) return
     
     const keys = getApiKeys();
     const openRouterModelsSelected = selectedModels.some(id => allModels.find(m => m.id === id)?.openRouterId);
@@ -99,11 +103,11 @@ export default function Home() {
       id: new Date().toISOString() + '-user',
       role: 'user',
       content: prompt,
-      image: image,
+      file: file,
     };
     
     let currentMessages = currentChat ? [...currentChat.messages, userMessage] : [userMessage];
-    let title = currentChat ? currentChat.title : (prompt || "Image Query").substring(0, 30) + "...";
+    let title = currentChat ? currentChat.title : (prompt || "File Query").substring(0, 30) + "...";
 
     if (currentChat) {
       setCurrentChat(prev => ({...prev!, messages: [...prev!.messages, userMessage]}));
@@ -121,7 +125,7 @@ export default function Home() {
 
       const modelResponses = await getModelResponses({ 
         prompt, 
-        imageDataUri: image,
+        fileDataUri: file?.dataUri || null,
         models: modelsToQuery.map(m => ({ 
             id: m.id, 
             name: m.name, 
@@ -164,7 +168,7 @@ export default function Home() {
         setChatHistory(prev => [newChat, ...prev]);
       }
       setPrompt("");
-      setImage(null);
+      setFile(null);
 
     } catch (error) {
       console.error(error)
@@ -188,6 +192,14 @@ export default function Home() {
     setCurrentChat(chat);
   }
 
+  const handleSetImage = (dataUri: string | null) => {
+    if (dataUri) {
+      setFile({ dataUri, name: "camera_capture.png", type: "image/png" });
+    } else {
+      setFile(null);
+    }
+  };
+
   const currentMessagesToDisplay = currentChat ? currentChat.messages : [];
   const modelsToDisplay = allModels.filter(m => selectedModels.includes(m.id));
 
@@ -196,7 +208,7 @@ export default function Home() {
        <CameraCaptureDialog 
           isOpen={isCameraOpen} 
           setIsOpen={setIsCameraOpen} 
-          setImage={setImage}
+          setImage={handleSetImage}
         />
       <div className="flex h-screen w-screen flex-col bg-transparent overflow-hidden">
         <AppHeader>
@@ -276,8 +288,15 @@ export default function Home() {
                               <User className="h-5 w-5 text-primary-foreground" />
                           </div>
                           <div className="flex-1">
-                            {message.image && (
-                               <img src={message.image} alt="User upload" className="rounded-lg max-w-xs mb-2 border border-border/20" />
+                            {message.file && (
+                                message.file.type.startsWith('image/') ? (
+                                  <img src={message.file.dataUri} alt={message.file.name} className="rounded-lg max-w-xs mb-2 border border-border/20" />
+                                ) : (
+                                  <div className="p-3 rounded-lg bg-muted border border-border/20 mb-2 max-w-xs">
+                                      <p className="text-sm font-medium text-foreground">{message.file.name}</p>
+                                      <p className="text-xs text-muted-foreground">{message.file.type}</p>
+                                  </div>
+                                )
                             )}
                             <p className="text-foreground/80 prose prose-sm max-w-none pt-1">{message.content}</p>
                           </div>
@@ -324,8 +343,8 @@ export default function Home() {
                     setPrompt={setPrompt}
                     isLoading={isLoading}
                     onSubmit={handleSubmit}
-                    image={image}
-                    setImage={setImage}
+                    file={file}
+                    setFile={setFile}
                     onCameraClick={() => setIsCameraOpen(true)}
                   />
                </div>
