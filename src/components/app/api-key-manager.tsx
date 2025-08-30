@@ -13,15 +13,26 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Settings, ExternalLink } from "lucide-react"
+import { Settings, ExternalLink, MessageSquare, Code, Feather, Image as ImageIcon } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { allModels } from "@/lib/models"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
 
 const API_KEY_STORAGE_KEY = "ai_api_keys"
+
+type UseCase = "All" | "Dialogue" | "Coding" | "Creative Writing" | "Image Analysis";
+
+const useCases: { name: UseCase, icon: React.FC<any> }[] = [
+    { name: "All", icon: () => <span className="text-xs font-bold">All</span> },
+    { name: "Dialogue", icon: MessageSquare },
+    { name: "Coding", icon: Code },
+    { name: "Creative Writing", icon: Feather },
+    { name: "Image Analysis", icon: ImageIcon },
+];
 
 interface ApiKeys {
   gemini: string;
@@ -37,6 +48,7 @@ interface ApiKeyManagerProps {
 
 export function ApiKeyManager({ isOpen, setIsOpen, selectedModels, setSelectedModels }: ApiKeyManagerProps) {
   const [keys, setKeys] = useState<ApiKeys>({ gemini: "", openrouter: "" })
+  const [activeUseCase, setActiveUseCase] = useState<UseCase>("All");
   const { toast } = useToast()
 
   useEffect(() => {
@@ -75,6 +87,10 @@ export function ApiKeyManager({ isOpen, setIsOpen, selectedModels, setSelectedMo
       setIsOpen(false)
     }
   }
+
+  const filteredModels = activeUseCase === "All" 
+    ? allModels 
+    : allModels.filter(model => model.useCases?.includes(activeUseCase));
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -123,7 +139,7 @@ export function ApiKeyManager({ isOpen, setIsOpen, selectedModels, setSelectedMo
                       onChange={handleInputChange}
                     />
                   </div>
-                   <p className="text-xs text-muted-foreground col-span-4">
+                   <p className="text-xs text-muted-foreground col-span-4 text-right">
                       Your keys are stored in your browser's local storage. Get your keys from:
                       <a href="https://ai.google.dev/" target="_blank" rel="noopener noreferrer" className="underline text-primary/80 hover:text-primary"> Google AI Studio </a>
                        and 
@@ -138,13 +154,29 @@ export function ApiKeyManager({ isOpen, setIsOpen, selectedModels, setSelectedMo
                 <h3 className="text-lg font-medium mb-2">Model Selection</h3>
                 <div className="text-sm text-muted-foreground mb-4">
                   <p>
-                    Select the AI models you want to include in the comparison. For more details on all available models in the market, 
-                    visit the <a href="https://ai-inventory-blond.vercel.app/" target="_blank" rel="noopener noreferrer" className="underline text-primary/80 hover:text-primary">AI Model Inventory</a>, developed by Navuluri Balaji.
+                    Select a task to see recommended models, or browse all. For more details on all available models, 
+                    visit the <a href="https://ai-inventory-blond.vercel.app/" target="_blank" rel="noopener noreferrer" className="underline text-primary/80 hover:text-primary">AI Model Inventory</a> by Navuluri Balaji.
                     <ExternalLink className="inline-block h-3 w-3 ml-1" />
                   </p>
                 </div>
+                
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {useCases.map(uc => (
+                    <Button 
+                      key={uc.name} 
+                      type="button"
+                      variant={activeUseCase === uc.name ? "default" : "outline"}
+                      onClick={() => setActiveUseCase(uc.name)}
+                      className="gap-2"
+                    >
+                      <uc.icon className="h-4 w-4" />
+                      {uc.name}
+                    </Button>
+                  ))}
+                </div>
+
                 <div className="space-y-4">
-                  {allModels.map(model => (
+                  {filteredModels.map(model => (
                     <div key={model.id} className="flex items-start gap-4 p-3 rounded-lg border border-border/20">
                       <Checkbox
                         id={`model-${model.id}`}
@@ -178,5 +210,3 @@ export function ApiKeyManager({ isOpen, setIsOpen, selectedModels, setSelectedMo
     </Dialog>
   )
 }
-
-    
