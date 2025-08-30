@@ -152,17 +152,29 @@ export default function Home() {
       file: file,
     };
     
+    // Add user message and a placeholder for assistant response
+    const modelsToQuery = allModels.filter(model => selectedModels.includes(model.id));
+    const initialAssistantMessage: Message = {
+      id: new Date().toISOString() + '-assistant',
+      role: 'assistant',
+      content: '', // No primary content needed when there are cards
+      responses: modelsToQuery.map(model => ({
+        id: model.id,
+        name: model.name,
+        response: '...', // Placeholder for streaming
+        duration: 0,
+      })),
+    };
+
     setChatHistory(prev => prev.map(chat => 
         chat.id === activeChatId 
-            ? { ...chat, messages: [...chat.messages, userMessage] }
+            ? { ...chat, messages: [...chat.messages, userMessage, initialAssistantMessage] }
             : chat
     ));
 
 
     try {
-      const modelsToQuery = allModels.filter(model => selectedModels.includes(model.id));
-
-      const modelResponses = await getModelResponses({ 
+      const responses = await getModelResponses({ 
         prompt, 
         fileDataUri: file?.dataUri || null,
         models: modelsToQuery.map(m => ({ 
@@ -177,26 +189,24 @@ export default function Home() {
       const newResponses: AIResponse[] = modelsToQuery
         .map(model => ({
           ...model,
-          response: modelResponses[model.id]?.response || "No response from model.",
-          duration: modelResponses[model.id]?.duration || 0,
-      }))
+          response: responses[model.id]?.response || "No response from model.",
+          duration: responses[model.id]?.duration || 0,
+      }));
       
-      const assistantMessage: Message = {
-        id: new Date().toISOString() + '-assistant',
-        role: 'assistant',
-        content: '',
-        responses: newResponses,
-      };
-
       setChatHistory(prev => prev.map(chat => {
-        if (chat.id === activeChatId) {
-            const updatedChat = { ...chat, messages: [...chat.messages, assistantMessage] };
-            if (isNewChat && chat.messages.length === 1) { // It was a new chat, first user message just added
-                updatedChat.title = (prompt || "File Query").substring(0, 30) + "...";
-            }
-            return updatedChat;
-        }
-        return chat;
+          if (chat.id === activeChatId) {
+              const newMessages = [...chat.messages];
+              const assistantMsgIndex = newMessages.findIndex(m => m.id === initialAssistantMessage.id);
+              if (assistantMsgIndex !== -1) {
+                  newMessages[assistantMsgIndex].responses = newResponses;
+              }
+              const updatedChat = { ...chat, messages: newMessages };
+              if (isNewChat && chat.messages.length <= 2) { 
+                  updatedChat.title = (prompt || "File Query").substring(0, 30) + "...";
+              }
+              return updatedChat;
+          }
+          return chat;
       }));
 
       setPrompt("");
@@ -211,10 +221,10 @@ export default function Home() {
         description: `Could not fetch responses. ${errorMessage}`,
       })
       
-      // Rollback user message on error
+      // Rollback user message and assistant placeholder on error
       setChatHistory(prev => prev.map(chat => 
         chat.id === activeChatId 
-            ? { ...chat, messages: chat.messages.filter(m => m.id !== userMessage.id) }
+            ? { ...chat, messages: chat.messages.filter(m => m.id !== userMessage.id && m.id !== initialAssistantMessage.id) }
             : chat
       ));
 
@@ -237,8 +247,7 @@ export default function Home() {
 
   const currentChat = chatHistory.find(c => c.id === currentChatId);
   const currentMessagesToDisplay = currentChat ? currentChat.messages : [];
-  const modelsToDisplay = allModels.filter(m => selectedModels.includes(m.id));
-
+  
   return (
     <SidebarProvider>
        <CameraCaptureDialog 
@@ -343,7 +352,20 @@ export default function Home() {
                             <div className="flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-6">
                               {message.responses.map(res => (
                                  <div key={res.id} className="w-full md:w-[400px] flex-shrink-0">
-                                   <ResponseCard modelName={res.name} response={res.response} duration={res.duration} />
+                                   {res.response === '...' ? (
+                                     <div className="flex flex-col space-y-3 p-4 border border-border/20 rounded-lg bg-card h-full w-full md:min-w-[400px]">
+                                        <div className="flex items-center gap-3">
+                                          <Bot className="h-5 w-5 text-green-400" />
+                                          <h3 className="font-semibold text-base">{res.name}</h3>
+                                        </div>
+                                        <Skeleton className="h-4 w-full" />
+                                        <Skeleton className="h-4 w-[90%]" />
+                                        <Skeleton className="h-4 w-[95%]" />
+                                        <Skeleton className="h-4 w-[80%]" />
+                                     </div>
+                                   ) : (
+                                     <ResponseCard modelName={res.name} response={res.response} duration={res.duration} />
+                                   )}
                                  </div>
                               ))}
                             </div>
@@ -351,24 +373,6 @@ export default function Home() {
                       )}
                     </div>
                   ))}
-
-                  {isLoading && currentMessagesToDisplay.length > 0 && currentMessagesToDisplay[currentMessagesToDisplay.length - 1]?.role === 'user' && (
-                    <div className="overflow-x-auto pb-4">
-                      <div className="flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-6">
-                        {modelsToDisplay.map(model => (
-                          <div key={model.id} className="flex flex-col space-y-3 p-4 border border-border/20 rounded-lg bg-card w-full md:min-w-[400px]">
-                             <div className="flex items-center gap-3">
-                               <Skeleton className="h-6 w-32" />
-                             </div>
-                            <Skeleton className="h-4 w-full" />
-                            <Skeleton className="h-4 w-[90%]" />
-                            <Skeleton className="h-4 w-[95%]" />
-                             <Skeleton className="h-4 w-[80%]" />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
               </div>
             </div>
             
@@ -391,5 +395,3 @@ export default function Home() {
     </SidebarProvider>
   )
 }
-
-    
