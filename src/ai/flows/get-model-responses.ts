@@ -13,11 +13,20 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { callOpenRouter } from '@/lib/openrouter';
 import { allModels } from '@/lib/models';
-import { Part } from 'genkit';
+import { Message, Part } from 'genkit';
+
+const MessageSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string(),
+  file: z.object({
+    dataUri: z.string(),
+    name: z.string(),
+    type: z.string(),
+  }).optional().nullable(),
+});
 
 const GetModelResponsesInputSchema = z.object({
-  prompt: z.string().describe('The prompt to send to the AI models.'),
-  fileDataUri: z.string().optional().nullable().describe('An optional file data URI.'),
+  messages: z.array(MessageSchema).describe('The conversation history to send to the models.'),
   models: z.array(z.object({
     id: z.string(),
     name: z.string(),
@@ -46,7 +55,7 @@ const getModelResponsesFlow = ai.defineFlow(
     inputSchema: GetModelResponsesInputSchema,
     outputSchema: GetModelResponsesOutputSchema,
   },
-  async ({ prompt, models, openRouterKey, fileDataUri }) => {
+  async ({ messages, models, openRouterKey }) => {
     const promises = [];
 
     const timeRequest = async (id: string, promise: Promise<string>) => {
@@ -62,20 +71,26 @@ const getModelResponsesFlow = ai.defineFlow(
         return { id, response: errorMessage, duration: Math.round(endTime - startTime) };
       }
     };
-
-    // Construct parts for multimodal input
-    const promptParts: Part[] = [{ text: prompt }];
-    if (fileDataUri) {
-      promptParts.push({ media: { url: fileDataUri } });
-    }
+    
+    // Convert our app's message format to Genkit's Message format for Gemini
+    const genkitMessages: Message[] = messages.map(msg => {
+      const parts: Part[] = [{ text: msg.content }];
+      if (msg.file?.dataUri) {
+        // Genkit expects images in `media` parts. Let's assume the last message's file is the one we care about for now.
+         parts.push({ media: { url: msg.file.dataUri } });
+      }
+      return {
+        role: msg.role,
+        content: parts,
+      };
+    });
     
     // Gemini calls
     const geminiModels = models.filter(m => !!m.genkitId);
     for (const model of geminiModels) {
-        // Vision models can handle images, others might not.
-        // For this app, we assume all selected Gemini models are vision-capable if an image is provided.
         const geminiPromise = ai.generate({
-            prompt: promptParts,
+            prompt: genkitMessages.map(m => m.content).flat(), // Flatten parts for simplicity; Genkit `generate` takes Parts[]
+            history: genkitMessages.slice(0, -1), // Pass previous messages as history
             model: model.genkitId as any,
           })
           .then(response => response.text);
@@ -86,7 +101,7 @@ const getModelResponsesFlow = ai.defineFlow(
     const openRouterModels = models.filter(m => !!m.openRouterId);
     for (const model of openRouterModels) {
       if(model.openRouterId) {
-        const openRouterPromise = callOpenRouter(model.openRouterId, prompt, openRouterKey, fileDataUri);
+        const openRouterPromise = callOpenRouter(model.openRouterId, messages, openRouterKey);
         promises.push(timeRequest(model.id, openRouterPromise));
       }
     }
