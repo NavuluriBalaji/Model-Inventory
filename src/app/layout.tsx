@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Model-Inventory: AI Model Showdown',
     description: 'Compare outputs from multiple AI models side-by-side in a clean, modern interface.',
-    url: 'https://model-inventory-omega.vercel.app/', // Replace with your actual domain
+    url: 'https://model-inventory.com', // Replace with your actual domain
     siteName: 'Model-Inventory',
     images: [
       {
@@ -56,7 +56,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
         <script 
           async 
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=pub-7588559034223859
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-YOUR_PUBLISHER_ID"
           crossOrigin="anonymous"
         ></script>
       </head>
