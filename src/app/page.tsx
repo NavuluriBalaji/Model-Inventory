@@ -132,6 +132,7 @@ export default function Home() {
 
     let activeChatId = currentChatId;
     let isNewChat = false;
+    let existingMessages: Message[] = [];
 
     if (!activeChatId) {
         const newChat: Chat = {
@@ -143,6 +144,8 @@ export default function Home() {
         setCurrentChatId(newChat.id);
         activeChatId = newChat.id;
         isNewChat = true;
+    } else {
+        existingMessages = chatHistory.find(c => c.id === activeChatId)?.messages || [];
     }
     
     const userMessage: Message = {
@@ -152,16 +155,15 @@ export default function Home() {
       file: file,
     };
     
-    // Add user message and a placeholder for assistant response
     const modelsToQuery = allModels.filter(model => selectedModels.includes(model.id));
     const initialAssistantMessage: Message = {
       id: new Date().toISOString() + '-assistant',
       role: 'assistant',
-      content: '', // No primary content needed when there are cards
+      content: '', 
       responses: modelsToQuery.map(model => ({
         id: model.id,
         name: model.name,
-        response: '...', // Placeholder for streaming
+        response: '...', 
         duration: 0,
       })),
     };
@@ -172,11 +174,11 @@ export default function Home() {
             : chat
     ));
 
-
     try {
+       const messagesForApi = [...existingMessages.map(m => ({...m, responses: undefined})), userMessage];
+
       const responses = await getModelResponses({ 
-        prompt, 
-        fileDataUri: file?.dataUri || null,
+        messages: messagesForApi,
         models: modelsToQuery.map(m => ({ 
             id: m.id, 
             name: m.name, 
@@ -221,7 +223,6 @@ export default function Home() {
         description: `Could not fetch responses. ${errorMessage}`,
       })
       
-      // Rollback user message and assistant placeholder on error
       setChatHistory(prev => prev.map(chat => 
         chat.id === activeChatId 
             ? { ...chat, messages: chat.messages.filter(m => m.id !== userMessage.id && m.id !== initialAssistantMessage.id) }
