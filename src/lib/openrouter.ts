@@ -2,14 +2,22 @@
 "use server";
 import { fileTypeFromBuffer } from 'file-type';
 
+interface Message {
+    role: 'user' | 'assistant';
+    content: string;
+    file?: {
+      dataUri: string;
+      name: string;
+      type: string;
+    } | null;
+}
+
 async function getMimeTypeFromDataUri(dataUri: string): Promise<string | undefined> {
   const match = dataUri.match(/^data:(.+?);base64,(.*)$/);
   if (match) {
-    // If MIME type is present in the data URI, use it.
     if(match[1] && match[1] !== 'application/octet-stream') {
         return match[1];
     }
-    // If it's generic, try to infer from buffer.
     const buffer = Buffer.from(match[2], 'base64');
     const type = await fileTypeFromBuffer(buffer);
     return type?.mime;
@@ -18,47 +26,52 @@ async function getMimeTypeFromDataUri(dataUri: string): Promise<string | undefin
 }
 
 
-export async function callOpenRouter(model: string, prompt: string, apiKey?: string, fileDataUri?: string | null): Promise<string> {
+export async function callOpenRouter(model: string, messages: Message[], apiKey?: string): Promise<string> {
   const finalApiKey = apiKey || process.env.OPENROUTER_API_KEY;
 
   if (!finalApiKey) {
     throw new Error('OpenRouter API key not found. Please set it in the settings.');
   }
 
-  // Build messages array
-  const messages: any[] = [{
-    role: 'user',
-    content: [] as any[]
-  }];
-  
-  if (prompt) {
-    messages[0].content.push({ type: 'text', text: prompt });
-  }
+  // Convert our message format to what OpenRouter expects
+  const openRouterMessages = await Promise.all(messages.map(async (msg) => {
+    if (msg.role === 'assistant') {
+      return {
+        role: 'assistant',
+        content: msg.content,
+      };
+    }
 
-  if (fileDataUri) {
-     const mimeType = await getMimeTypeFromDataUri(fileDataUri);
-     if (mimeType?.startsWith('image/')) {
-        messages[0].content.unshift({
+    // User message
+    const contentParts: any[] = [];
+    if (msg.content) {
+      contentParts.push({ type: 'text', text: msg.content });
+    }
+
+    if (msg.file?.dataUri) {
+      const mimeType = await getMimeTypeFromDataUri(msg.file.dataUri);
+      if (mimeType?.startsWith('image/')) {
+        contentParts.push({
           type: 'image_url',
-          image_url: {
-            url: fileDataUri
-          },
+          image_url: { url: msg.file.dataUri },
         });
-     } else {
-        // For non-image files, some models might still handle them if instructed.
-        // We can add a generic text note about the file.
-        const fileName = "uploaded_file"
-        const fileInfo = `An '${mimeType}' file named '${fileName}' was uploaded.`;
-        const updatedPrompt = `${prompt}\n\n[System Note: ${fileInfo}]`;
-         messages[0].content = [{type: 'text', text: updatedPrompt }];
-         console.warn(`Model ${model} may not support non-image file type: ${mimeType}`);
-     }
-  }
+      } else {
+        console.warn(`Model ${model} may not support non-image file type: ${mimeType}`);
+      }
+    }
+    
+    // OpenRouter expects `content` to be a string if there's no image,
+    // or an array of parts if there is an image.
+    return {
+      role: 'user',
+      content: contentParts.length === 1 && contentParts[0].type === 'text'
+        ? contentParts[0].text
+        : contentParts,
+    };
+  }));
 
-  // If content is just text, simplify the structure to a plain string
-  if (messages[0].content.length === 1 && messages[0].content[0].type === 'text') {
-    messages[0].content = messages[0].content[0].text;
-  }
+  // Filter out any empty messages
+  const validMessages = openRouterMessages.filter(m => m.content && (Array.isArray(m.content) ? m.content.length > 0 : true));
   
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -68,7 +81,7 @@ export async function callOpenRouter(model: string, prompt: string, apiKey?: str
     },
     body: JSON.stringify({
       model,
-      messages,
+      messages: validMessages,
     }),
   });
 
