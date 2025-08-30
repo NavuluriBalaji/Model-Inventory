@@ -76,34 +76,46 @@ const getModelResponsesFlow = ai.defineFlow(
     const genkitMessages: Message[] = messages.map(msg => {
       const parts: Part[] = [{ text: msg.content }];
       if (msg.file?.dataUri) {
-        // Genkit expects images in `media` parts. Let's assume the last message's file is the one we care about for now.
          parts.push({ media: { url: msg.file.dataUri } });
       }
       return {
-        role: msg.role,
+        role: msg.role === 'assistant' ? 'model' : 'user', // Genkit uses 'model' for assistant
         content: parts,
       };
     });
     
     // Gemini calls
     const geminiModels = models.filter(m => !!m.genkitId);
-    for (const model of geminiModels) {
-        const geminiPromise = ai.generate({
-            prompt: genkitMessages.map(m => m.content).flat(), // Flatten parts for simplicity; Genkit `generate` takes Parts[]
-            history: genkitMessages.slice(0, -1), // Pass previous messages as history
-            model: model.genkitId as any,
-          })
-          .then(response => response.text);
-        promises.push(timeRequest(model.id, geminiPromise));
+    if (geminiModels.length > 0) {
+        const history = genkitMessages.slice(0, -1);
+        const lastMessage = genkitMessages[genkitMessages.length - 1];
+        
+        for (const model of geminiModels) {
+            const geminiPromise = ai.generate({
+                prompt: lastMessage.content,
+                history: history,
+                model: model.genkitId as any,
+              })
+              .then(response => response.text);
+            promises.push(timeRequest(model.id, geminiPromise));
+        }
     }
 
     // OpenRouter calls
     const openRouterModels = models.filter(m => !!m.openRouterId);
-    for (const model of openRouterModels) {
-      if(model.openRouterId) {
-        const openRouterPromise = callOpenRouter(model.openRouterId, messages, openRouterKey);
-        promises.push(timeRequest(model.id, openRouterPromise));
-      }
+    if (openRouterModels.length > 0) {
+        const openRouterMessages = messages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            file: msg.file,
+        }));
+
+        for (const model of openRouterModels) {
+          if(model.openRouterId) {
+            const openRouterPromise = callOpenRouter(model.openRouterId, openRouterMessages, openRouterKey);
+            promises.push(timeRequest(model.id, openRouterPromise));
+          }
+        }
     }
     
     const results = await Promise.all(promises);
