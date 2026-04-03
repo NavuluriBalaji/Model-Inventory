@@ -4,8 +4,9 @@
 import * as React from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Send, Loader2, Paperclip, Camera, X, File as FileIcon } from "lucide-react"
+import { Send, Loader2, Paperclip, Camera, X, File as FileIcon, Sparkles, Wand2 } from "lucide-react"
 import Image from "next/image"
+import { cn } from "@/lib/utils"
 
 interface PromptFormProps {
   prompt: string
@@ -52,12 +53,12 @@ export function PromptForm({
 
     if (file.type.startsWith('image/')) {
         return (
-            <div className="relative mb-2 w-24 h-24 rounded-lg overflow-hidden border border-border/30">
+            <div className="relative mb-4 w-32 h-32 rounded-2xl overflow-hidden border border-white/10 shadow-2xl animate-in zoom-in-50 duration-300">
                 <Image src={file.dataUri} alt="Selected image" layout="fill" objectFit="cover" />
                 <Button
                     size="icon"
                     variant="ghost"
-                    className="absolute top-0 right-0 h-6 w-6 rounded-full bg-black/50 hover:bg-black/70"
+                    className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md"
                     onClick={() => setFile(null)}
                 >
                     <X className="h-4 w-4 text-white" />
@@ -67,16 +68,18 @@ export function PromptForm({
     }
 
     return (
-        <div className="relative mb-2 p-3 rounded-lg bg-muted border border-border/20 flex items-center gap-3 max-w-xs">
-            <FileIcon className="h-6 w-6 text-muted-foreground" />
-            <div className="flex-1">
-                <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
-                <p className="text-xs text-muted-foreground">{file.type}</p>
+        <div className="relative mb-4 p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center gap-4 max-w-xs animate-in slide-in-from-left-4 duration-300">
+            <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                <FileIcon className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-white truncate">{file.name}</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{file.type.split('/')[1]}</p>
             </div>
              <Button
                 size="icon"
                 variant="ghost"
-                className="h-6 w-6 rounded-full"
+                className="h-8 w-8 rounded-full hover:bg-white/10"
                 onClick={() => setFile(null)}
             >
                 <X className="h-4 w-4" />
@@ -86,58 +89,92 @@ export function PromptForm({
   }
 
   return (
-    <div className="relative">
-       {renderFilePreview()}
-      <form onSubmit={onSubmit} className="relative">
-        <Input
-          placeholder="Ask a question about your file or just send a prompt..."
-          className="pl-4 pr-32 h-12 rounded-lg bg-card border-border/30"
-          value={prompt}
-          onChange={e => setPrompt(e.target.value)}
-          disabled={isLoading}
-        />
-        <div className="absolute top-1/2 right-2 -translate-y-1/2 flex items-center gap-1">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            className="hidden"
-          />
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="rounded-full h-9 w-9"
-            onClick={handleFileClick}
-            disabled={isLoading}
-            aria-label="Attach file"
-          >
-            <Paperclip className="h-5 w-5 text-muted-foreground" />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="rounded-full h-9 w-9"
-            onClick={onCameraClick}
-            disabled={isLoading}
-            aria-label="Use camera"
-          >
-            <Camera className="h-5 w-5 text-muted-foreground" />
-          </Button>
-          <Button
-            type="submit"
-            size="icon"
-            className="rounded-full h-9 w-9 bg-primary/80 hover:bg-primary"
-            disabled={isLoading || (!prompt && !file)}
-            aria-label="Submit prompt"
-          >
-            {isLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
-            )}
-          </Button>
+    <div className="relative w-full max-w-3xl mx-auto">
+       <div className="flex flex-col items-center">
+          {renderFilePreview()}
+       </div>
+       
+      <form onSubmit={onSubmit} className="relative group">
+        <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 to-emerald-500/30 rounded-[32px] blur-lg opacity-0 group-focus-within:opacity-100 transition duration-500" />
+        
+        <div className="relative flex items-center bg-sidebar-background/60 backdrop-blur-2xl border border-white/10 rounded-[28px] p-2 transition-all duration-300 group-focus-within:border-primary/40 group-focus-within:bg-sidebar-background/80 shadow-2xl">
+            <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="rounded-full h-12 w-12 hover:bg-white/5 transition-all text-muted-foreground hover:text-primary"
+                onClick={handleFileClick}
+                disabled={isLoading}
+            >
+                <Paperclip className="h-5 w-5" />
+            </Button>
+            
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+            />
+
+            <input
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                placeholder="Ask anything..."
+                disabled={isLoading}
+                className="flex-1 bg-transparent border-none outline-none focus:ring-0 px-4 py-3 text-white placeholder:text-muted-foreground/60 text-sm md:text-base font-medium"
+            />
+
+            <div className="flex items-center gap-1 pr-1">
+                <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="rounded-full h-10 w-10 hover:bg-white/5 text-muted-foreground hidden md:flex"
+                    onClick={onCameraClick}
+                >
+                    <Camera className="h-5 w-5" />
+                </Button>
+                
+                <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="rounded-full h-10 w-10 hover:bg-white/5 text-muted-foreground hidden md:flex"
+                >
+                    <Wand2 className="h-5 w-5" />
+                </Button>
+
+                <Button
+                    type="submit"
+                    size="icon"
+                    className={cn(
+                        "rounded-2xl h-11 w-11 transition-all duration-300 group-focus-within:scale-105",
+                        prompt || file 
+                            ? "bg-primary text-primary-foreground shadow-[0_0_20px_rgba(34,197,94,0.4)]" 
+                            : "bg-white/5 text-white/20"
+                    )}
+                    disabled={isLoading || (!prompt && !file)}
+                >
+                    {isLoading ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                        <Send className="h-5 w-5" />
+                    )}
+                </Button>
+            </div>
+        </div>
+        
+        {/* Quick actions row */}
+        <div className="flex items-center justify-center gap-2 mt-4 opacity-40 hover:opacity-100 transition-opacity">
+            {['Code', 'Science', 'Writing', 'Math'].map(tag => (
+                <button 
+                    key={tag}
+                    type="button"
+                    className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-white/10 hover:bg-white/5 transition-all text-white/60"
+                >
+                    {tag}
+                </button>
+            ))}
         </div>
       </form>
     </div>

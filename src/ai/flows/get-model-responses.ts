@@ -64,17 +64,24 @@ const getModelResponsesFlow = ai.defineFlow(
         const response = await promise;
         const endTime = performance.now();
         return { id, response, duration: Math.round(endTime - startTime) };
-      } catch (error) {
+      } catch (error: any) {
         const endTime = performance.now();
-        const errorMessage = error instanceof Error ? `Error: ${error.message}` : 'An unknown error occurred';
+        let errorMessage = 'An system error occurred';
+        
+        if (error?.message?.includes('404') || error?.message?.includes('Not Found')) {
+            errorMessage = 'OPERATIVE OFFLINE: This model endpoint is currently unavailable. The operative might be undergoing maintenance or the ID has been updated.';
+        } else if (error?.message) {
+            errorMessage = `SYSTEM ERROR: ${error.message}`;
+        }
+        
         console.error(`Error for model ${id}:`, error);
         return { id, response: errorMessage, duration: Math.round(endTime - startTime) };
       }
     };
     
     // Convert our app's message format to Genkit's Message format for Gemini
-    const genkitMessages: Message[] = messages.map(msg => {
-      const parts: Part[] = [{ text: msg.content }];
+    const genkitMessages: any[] = messages.map(msg => {
+      const parts: any[] = [{ text: msg.content }];
       if (msg.file?.dataUri) {
          parts.push({ media: { url: msg.file.dataUri } });
       }
@@ -92,10 +99,10 @@ const getModelResponsesFlow = ai.defineFlow(
         
         for (const model of geminiModels) {
             const geminiPromise = ai.generate({
-                prompt: lastMessage.content,
+                model: model.genkitId,
                 history: history,
-                model: model.genkitId as any,
-              })
+                prompt: lastMessage.content,
+              } as any)
               .then(response => response.text);
             promises.push(timeRequest(model.id, geminiPromise));
         }
