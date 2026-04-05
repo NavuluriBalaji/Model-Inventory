@@ -55,7 +55,7 @@ Follow these steps to get a local copy up and running.
     - Get your API keys from:
         - [Google AI Studio](https://ai.google.dev/) for the Gemini API Key.
         - [OpenRouter.ai](https://openrouter.ai/) for the OpenRouter API Key.
-    - You can either set them in the in-app settings UI or create a `.env.local` file in the root of your project and add your keys there:
+    - You can either set them in the in-app settings UI or create a `.env.local` file in the root of your project and add your keys there-
         ```.env.local
         GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
         OPENROUTER_API_KEY="YOUR_OPENROUTER_API_KEY"
